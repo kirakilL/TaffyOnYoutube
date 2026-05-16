@@ -4,6 +4,7 @@
   const FALLBACK_TAFFY_IMAGE_URL = chrome.runtime.getURL("images/taffy.png");
   let taffyImageUrls = [FALLBACK_TAFFY_IMAGE_URL];
   let taffyAssetVersion = "fallback";
+  let imageIndexBag = [];
 
   const YOUTUBE_THUMBNAIL_SELECTOR = [
     "ytd-thumbnail",
@@ -148,20 +149,59 @@
       return storedIndexes.slice(0, overlayCount);
     }
 
-    const availableIndexes = taffyImageUrls.map((_, index) => index);
     const imageIndexes = [];
 
     for (let slot = 0; slot < overlayCount; slot += 1) {
-      const randomIndex = Math.floor(Math.random() * availableIndexes.length);
-      imageIndexes.push(availableIndexes.splice(randomIndex, 1)[0]);
+      const nextIndex = drawImageIndex(imageIndexes);
 
-      if (!availableIndexes.length) {
+      if (nextIndex === null) {
         break;
       }
+
+      imageIndexes.push(nextIndex);
     }
 
     thumbnail.dataset.taffyImageIndexes = imageIndexes.join(",");
     return imageIndexes;
+  }
+
+  function drawImageIndex(excludedIndexes = []) {
+    if (!taffyImageUrls.length) {
+      return null;
+    }
+
+    if (taffyImageUrls.length === 1) {
+      return 0;
+    }
+
+    const excluded = new Set(excludedIndexes);
+
+    while (imageIndexBag.length) {
+      const nextIndex = imageIndexBag.shift();
+
+      if (!excluded.has(nextIndex)) {
+        return nextIndex;
+      }
+    }
+
+    imageIndexBag = shuffledImageIndexes().filter((index) => !excluded.has(index));
+
+    if (!imageIndexBag.length) {
+      return null;
+    }
+
+    return imageIndexBag.shift();
+  }
+
+  function shuffledImageIndexes() {
+    const indexes = taffyImageUrls.map((_, index) => index);
+
+    for (let index = indexes.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [indexes[index], indexes[swapIndex]] = [indexes[swapIndex], indexes[index]];
+    }
+
+    return indexes;
   }
 
   function getRandomImageUrl(thumbnail, slot = 0, overlayCount = 1) {
@@ -477,6 +517,7 @@
       if (pngFiles.length) {
         taffyImageUrls = pngFiles.map((file) => chrome.runtime.getURL(file));
         taffyAssetVersion = pngFiles.join("|");
+        imageIndexBag = shuffledImageIndexes();
       }
     } catch (error) {
       console.warn("[Taffy Overlay] Falling back to images/taffy.png.", error);
