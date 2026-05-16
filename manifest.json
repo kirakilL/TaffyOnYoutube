@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Taffy Overlay for YouTube and Bilibili",
   "description": "Adds a Taffy overlay image to YouTube and Bilibili video thumbnails without replacing the original thumbnails.",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "permissions": ["storage"],
   "host_permissions": [
     "https://www.youtube.com/*",

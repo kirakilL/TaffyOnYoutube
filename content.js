@@ -4,7 +4,7 @@
   const FALLBACK_TAFFY_IMAGE_URL = chrome.runtime.getURL("images/taffy.png");
   let taffyImageUrls = [FALLBACK_TAFFY_IMAGE_URL];
   let taffyAssetVersion = "fallback";
-  let imageIndexBag = [];
+  let imageIndexOrder = [0];
 
   const YOUTUBE_THUMBNAIL_SELECTOR = [
     "ytd-thumbnail",
@@ -126,71 +126,30 @@
     return Number(thumbnail.dataset[key]);
   }
 
-  function getImageIndexes(thumbnail, overlayCount) {
+  function getImageIndexes(thumbnail, overlayCount, thumbnailIndex = 0) {
     if (!taffyImageUrls.length) {
       return [0];
     }
 
     if (thumbnail.dataset.taffyAssetVersion !== taffyAssetVersion) {
       thumbnail.dataset.taffyAssetVersion = taffyAssetVersion;
-      delete thumbnail.dataset.taffyImageIndexes;
-    }
-
-    const storedIndexes = (thumbnail.dataset.taffyImageIndexes || "")
-      .split(",")
-      .map((value) => Number(value))
-      .filter((value) => Number.isInteger(value) && value >= 0 && value < taffyImageUrls.length);
-
-    const needsNewIndexes =
-      storedIndexes.length < overlayCount ||
-      new Set(storedIndexes.slice(0, overlayCount)).size < overlayCount;
-
-    if (!needsNewIndexes) {
-      return storedIndexes.slice(0, overlayCount);
     }
 
     const imageIndexes = [];
+    const order = imageIndexOrder.length ? imageIndexOrder : taffyImageUrls.map((_, index) => index);
 
     for (let slot = 0; slot < overlayCount; slot += 1) {
-      const nextIndex = drawImageIndex(imageIndexes);
+      let imageIndex = order[(thumbnailIndex + slot) % order.length];
 
-      if (nextIndex === null) {
-        break;
+      if (imageIndexes.includes(imageIndex) && order.length > 1) {
+        imageIndex = order[(thumbnailIndex + slot + 1) % order.length];
       }
 
-      imageIndexes.push(nextIndex);
+      imageIndexes.push(imageIndex);
     }
 
     thumbnail.dataset.taffyImageIndexes = imageIndexes.join(",");
     return imageIndexes;
-  }
-
-  function drawImageIndex(excludedIndexes = []) {
-    if (!taffyImageUrls.length) {
-      return null;
-    }
-
-    if (taffyImageUrls.length === 1) {
-      return 0;
-    }
-
-    const excluded = new Set(excludedIndexes);
-
-    while (imageIndexBag.length) {
-      const nextIndex = imageIndexBag.shift();
-
-      if (!excluded.has(nextIndex)) {
-        return nextIndex;
-      }
-    }
-
-    imageIndexBag = shuffledImageIndexes().filter((index) => !excluded.has(index));
-
-    if (!imageIndexBag.length) {
-      return null;
-    }
-
-    return imageIndexBag.shift();
   }
 
   function shuffledImageIndexes() {
@@ -204,8 +163,8 @@
     return indexes;
   }
 
-  function getRandomImageUrl(thumbnail, slot = 0, overlayCount = 1) {
-    const imageIndexes = getImageIndexes(thumbnail, overlayCount);
+  function getRandomImageUrl(thumbnail, slot = 0, overlayCount = 1, thumbnailIndex = 0) {
+    const imageIndexes = getImageIndexes(thumbnail, overlayCount, thumbnailIndex);
     const imageIndex = imageIndexes[slot] ?? imageIndexes[0];
     return taffyImageUrls[imageIndex] || FALLBACK_TAFFY_IMAGE_URL;
   }
@@ -385,9 +344,9 @@
     return layer;
   }
 
-  function updateOverlay(thumbnail, overlay, slot, overlayCount) {
+  function updateOverlay(thumbnail, overlay, slot, overlayCount, thumbnailIndex) {
     const side = getOverlaySide(thumbnail, slot, overlayCount);
-    const imageUrl = getRandomImageUrl(thumbnail, slot, overlayCount);
+    const imageUrl = getRandomImageUrl(thumbnail, slot, overlayCount, thumbnailIndex);
     const widthValue = `${getOverlayWidth(thumbnail, slot, overlayCount)}%`;
     const rotationValue = `${getRandomRotation(thumbnail, slot)}deg`;
 
@@ -411,7 +370,7 @@
     overlay.classList.toggle("taffy-overlay--hidden", !settings.enabled);
   }
 
-  function processThumbnail(thumbnail) {
+  function processThumbnail(thumbnail, thumbnailIndex = 0) {
     thumbnail = normalizeThumbnailElement(thumbnail);
 
     if (!(thumbnail instanceof HTMLElement)) {
@@ -445,7 +404,7 @@
       }
 
       activeOverlays.add(overlay);
-      updateOverlay(thumbnail, overlay, slot, overlayCount);
+      updateOverlay(thumbnail, overlay, slot, overlayCount, thumbnailIndex);
     }
 
     overlayLayer.querySelectorAll(":scope > .taffy-overlay").forEach((existingOverlay) => {
@@ -473,7 +432,7 @@
       root.querySelectorAll(THUMBNAIL_SELECTOR).forEach(addThumbnail);
     }
 
-    thumbnails.forEach(processThumbnail);
+    Array.from(thumbnails).forEach((thumbnail, index) => processThumbnail(thumbnail, index));
   }
 
   function scheduleProcessThumbnails(root = document) {
@@ -517,7 +476,7 @@
       if (pngFiles.length) {
         taffyImageUrls = pngFiles.map((file) => chrome.runtime.getURL(file));
         taffyAssetVersion = pngFiles.join("|");
-        imageIndexBag = shuffledImageIndexes();
+        imageIndexOrder = shuffledImageIndexes();
       }
     } catch (error) {
       console.warn("[Taffy Overlay] Falling back to images/taffy.png.", error);
