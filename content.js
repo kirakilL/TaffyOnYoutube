@@ -145,14 +145,11 @@
     return Number(thumbnail.dataset[key]);
   }
 
-  function getRandomRotation(thumbnail, slot = 0) {
+  function getOverlayRotation(thumbnail, slot = 0) {
     const key = `taffyRotation${slot}`;
 
-    if (!thumbnail.dataset[key]) {
-      thumbnail.dataset[key] = (-4 + Math.random() * 8).toFixed(2);
-    }
-
-    return Number(thumbnail.dataset[key]);
+    delete thumbnail.dataset[key];
+    return 0;
   }
 
   function getImageIndexes(thumbnail, overlayCount, thumbnailIndex = 0) {
@@ -394,7 +391,7 @@
     const side = getOverlaySide(thumbnail, slot, overlayCount);
     const imageUrl = getRandomImageUrl(thumbnail, slot, overlayCount, thumbnailIndex);
     const widthValue = `${getOverlayWidth(thumbnail, slot, overlayCount)}%`;
-    const rotationValue = `${getRandomRotation(thumbnail, slot)}deg`;
+    const rotationValue = `${getOverlayRotation(thumbnail, slot)}deg`;
 
     thumbnail.classList.add("taffy-thumbnail-target");
     overlay.dataset.taffySlot = String(slot);
@@ -549,7 +546,7 @@
     const side = resolveSide(player);
     const imageUrl = getRandomImageUrl(player, 0, 1, 0);
     const widthValue = `${getPlayerOverlayWidth(player)}%`;
-    const rotationValue = `${getRandomRotation(player)}deg`;
+    const rotationValue = `${getOverlayRotation(player)}deg`;
 
     player.classList.add("taffy-player-target");
     overlay.classList.add("taffy-overlay--player");
