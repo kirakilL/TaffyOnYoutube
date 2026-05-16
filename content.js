@@ -299,6 +299,11 @@
   }
 
   function getOverlayCount(thumbnail) {
+    if (isYoutubeShortsThumbnail(thumbnail)) {
+      thumbnail.dataset.taffyOverlayCount = "1";
+      return 1;
+    }
+
     if (!canUseTwoOverlays(thumbnail)) {
       thumbnail.dataset.taffyOverlayCount = "1";
       return 1;
