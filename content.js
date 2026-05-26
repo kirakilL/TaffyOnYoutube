@@ -82,28 +82,6 @@
     ".html5-video-player"
   ].join(", ");
 
-  const YOUTUBE_PLAYER_VIDEO_SELECTOR = [
-    ".html5-main-video",
-    "#movie_player video",
-    ".html5-video-player video"
-  ].join(", ");
-
-  const BILIBILI_PLAYER_VIDEO_SELECTOR = [
-    "#bilibili-player video",
-    ".bpx-player-video-wrap video",
-    ".bpx-player-video-area video",
-    ".bilibili-player-video-wrap video",
-    ".bilibili-player-video video"
-  ].join(", ");
-
-  const BILIBILI_PLAYER_HOST_SELECTOR = [
-    ".bpx-player-video-area",
-    ".bpx-player-video-wrap",
-    ".bilibili-player-video-wrap",
-    ".bilibili-player-video",
-    "#bilibili-player"
-  ].join(", ");
-
   const DEFAULT_SETTINGS = {
     enabled: true,
     size: 35,
@@ -215,12 +193,6 @@
     return Math.round(cappedWidth * 10) / 10;
   }
 
-  function getPlayerOverlayWidth(player) {
-    const width = settings.size * getRandomScale(player) * 0.95;
-    const cappedWidth = Math.min(38, Math.max(24, width));
-    return Math.round(cappedWidth * 10) / 10;
-  }
-
   function createOverlay(slot) {
     const overlay = document.createElement("img");
     overlay.className = "taffy-overlay";
@@ -236,13 +208,6 @@
     const layer = document.createElement("div");
     layer.className = "taffy-overlay-layer";
     layer.dataset.taffyOverlayLayer = "true";
-    return layer;
-  }
-
-  function createPlayerOverlayLayer() {
-    const layer = document.createElement("div");
-    layer.className = "taffy-player-overlay-layer";
-    layer.dataset.taffyPlayerOverlayLayer = "true";
     return layer;
   }
 
@@ -430,8 +395,6 @@
     const overlayCount = getOverlayCount(thumbnail);
     const activeOverlays = new Set();
 
-    // Video sites frequently rebuild thumbnail internals. Keep one overlay layer in
-    // our own layer so hover previews and route changes do not create duplicates.
     thumbnail.querySelectorAll(".taffy-overlay-layer").forEach((existingLayer) => {
       if (existingLayer !== overlayLayer) {
         existingLayer.remove();
@@ -457,166 +420,10 @@
     });
   }
 
-  function isYoutubeWatchPage() {
-    return (
-      location.hostname.includes("youtube.com") &&
-      ["/watch", "/live", "/shorts"].some((path) => location.pathname.startsWith(path))
-    );
-  }
-
-  function isBilibiliWatchPage() {
-    return (
-      location.hostname.includes("bilibili.com") &&
-      (/^\/video\//.test(location.pathname) ||
-        /^\/bangumi\/play\//.test(location.pathname) ||
-        /^\/festival\//.test(location.pathname))
-    );
-  }
-
-  function isWatchPage() {
-    return isYoutubeWatchPage() || isBilibiliWatchPage();
-  }
-
-  function isVisibleVideo(video) {
-    if (!(video instanceof HTMLVideoElement)) {
-      return false;
-    }
-
-    const rect = video.getBoundingClientRect();
-    return rect.width >= 240 && rect.height >= 135 && rect.bottom > 0 && rect.right > 0;
-  }
-
-  function getLargestVisibleVideo(selector) {
-    return Array.from(document.querySelectorAll(selector))
-      .filter(isVisibleVideo)
-      .sort((firstVideo, secondVideo) => {
-        const firstRect = firstVideo.getBoundingClientRect();
-        const secondRect = secondVideo.getBoundingClientRect();
-        return secondRect.width * secondRect.height - firstRect.width * firstRect.height;
-      })[0];
-  }
-
-  function getMainVideo() {
-    if (location.hostname.includes("youtube.com")) {
-      return getLargestVisibleVideo(YOUTUBE_PLAYER_VIDEO_SELECTOR);
-    }
-
-    if (location.hostname.includes("bilibili.com")) {
-      return getLargestVisibleVideo(BILIBILI_PLAYER_VIDEO_SELECTOR);
-    }
-
-    return null;
-  }
-
-  function getPlayerHost(video) {
-    if (location.hostname.includes("youtube.com")) {
-      return video.closest(".html5-video-player") || video.closest("#movie_player") || video.parentElement;
-    }
-
-    if (location.hostname.includes("bilibili.com")) {
-      return video.closest(BILIBILI_PLAYER_HOST_SELECTOR) || video.parentElement;
-    }
-
-    return video.parentElement;
-  }
-
-  function getPlayerOverlayLayer(player) {
-    let layer = player.querySelector(":scope > .taffy-player-overlay-layer");
-
-    if (!layer) {
-      layer = createPlayerOverlayLayer();
-      player.appendChild(layer);
-    }
-
-    return layer;
-  }
-
-  function watchVideoPauseState(video) {
-    if (video.dataset.taffyPlayerWatched === "true") {
-      return;
-    }
-
-    video.dataset.taffyPlayerWatched = "true";
-    ["pause", "play", "playing", "ended", "loadedmetadata"].forEach((eventName) => {
-      video.addEventListener(eventName, () => scheduleProcessThumbnails(), { passive: true });
-    });
-  }
-
-  function updatePlayerOverlay(player, overlay, video) {
-    const side = resolveSide(player);
-    const imageUrl = getRandomImageUrl(player, 0, 1, 0);
-    const widthValue = `${getPlayerOverlayWidth(player)}%`;
-    const rotationValue = `${getOverlayRotation(player)}deg`;
-
-    player.classList.add("taffy-player-target");
-    overlay.classList.add("taffy-overlay--player");
-    overlay.classList.remove("taffy-overlay--pair");
-    overlay.dataset.taffySlot = "0";
-
-    if (overlay.src !== imageUrl) {
-      overlay.src = imageUrl;
-    }
-
-    if (overlay.style.getPropertyValue("--taffy-width") !== widthValue) {
-      overlay.style.setProperty("--taffy-width", widthValue);
-    }
-
-    if (overlay.style.getPropertyValue("--taffy-rotation") !== rotationValue) {
-      overlay.style.setProperty("--taffy-rotation", rotationValue);
-    }
-
-    overlay.classList.toggle("taffy-overlay--left", side === "left");
-    overlay.classList.toggle("taffy-overlay--right", side === "right");
-    overlay.classList.toggle("taffy-overlay--hidden", !settings.enabled || !video.paused);
-  }
-
-  function removeInactivePlayerLayers(activePlayer) {
-    document.querySelectorAll(".taffy-player-overlay-layer").forEach((layer) => {
-      if (!activePlayer || layer.parentElement !== activePlayer) {
-        layer.remove();
-      }
-    });
-
-    document.querySelectorAll(".taffy-player-target").forEach((player) => {
-      if (player !== activePlayer) {
-        player.classList.remove("taffy-player-target");
-      }
-    });
-  }
-
-  function processPlayers() {
-    if (!isWatchPage()) {
-      removeInactivePlayerLayers(null);
-      return;
-    }
-
-    const video = getMainVideo();
-    const player = video ? getPlayerHost(video) : null;
-
-    if (!(player instanceof HTMLElement)) {
-      removeInactivePlayerLayers(null);
-      return;
-    }
-
-    removeInactivePlayerLayers(player);
-    watchVideoPauseState(video);
-
-    const layer = getPlayerOverlayLayer(player);
-    let overlay = layer.querySelector(':scope > .taffy-overlay[data-taffy-slot="0"]');
-
-    if (!overlay) {
-      overlay = createOverlay(0);
-      layer.appendChild(overlay);
-    }
-
-    updatePlayerOverlay(player, overlay, video);
-  }
-
   function processThumbnails(root = document) {
     const thumbnails = new Set();
     const addThumbnail = (element) => {
       const thumbnail = normalizeThumbnailElement(element);
-
       if (thumbnail) {
         thumbnails.add(thumbnail);
       }
@@ -633,14 +440,9 @@
     Array.from(thumbnails).forEach((thumbnail, index) => processThumbnail(thumbnail, index));
   }
 
-  function processTargets(root = document) {
-    processThumbnails(root);
-    processPlayers();
-  }
-
   function scheduleProcessThumbnails(root = document) {
     window.clearTimeout(debounceId);
-    debounceId = window.setTimeout(() => processTargets(root), 120);
+    debounceId = window.setTimeout(() => processThumbnails(root), 120);
   }
 
   function isThumbnailRelatedNode(node) {
@@ -722,7 +524,7 @@
 
   function startSteadyScan() {
     window.clearInterval(steadyScanId);
-    steadyScanId = window.setInterval(() => processTargets(), 1000);
+    steadyScanId = window.setInterval(() => processThumbnails(), 1000);
   }
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
